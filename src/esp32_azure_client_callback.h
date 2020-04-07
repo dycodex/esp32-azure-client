@@ -1,6 +1,9 @@
 #ifndef DYCODEX_ESP32_AZURE_CALLBACK_H_
 #define DYCODEX_ESP32_AZURE_CALLBACK_H_
 
+// Credits to Victor.dMdB for this code
+// Original stackoverflow answer: https://stackoverflow.com/a/19809787
+
 #include <functional>
 
 template <typename T>
