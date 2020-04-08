@@ -40,6 +40,10 @@ bool ESP32AzureClient::begin(const char *connectionString)
     Callback<void(IOTHUB_CLIENT_CONFIRMATION_RESULT, void *)>::func = std::bind(&ESP32AzureClient::send_confirmation_callback, this, std::placeholders::_1, std::placeholders::_2);
     send_confirmation_cb_ = static_cast<IOTHUB_CLIENT_EVENT_CONFIRMATION_CALLBACK>(Callback<void(IOTHUB_CLIENT_CONFIRMATION_RESULT, void *)>::callback);
 
+    Callback<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, void *)>::func = std::bind(&ESP32AzureClient::c2d_message_callback, this, std::placeholders::_1, std::placeholders::_2);
+    IOTHUB_CLIENT_MESSAGE_CALLBACK_ASYNC c2d_message_cb = static_cast<IOTHUB_CLIENT_MESSAGE_CALLBACK_ASYNC>(Callback<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, void *)>::callback);
+    IoTHubDeviceClient_LL_SetMessageCallback(client_handle_, c2d_message_cb, NULL);
+
     // TODO: setup callback for direct method invocation
 
     xTaskCreate(&runTask, "esp32_azure_task", 1024 * 8, this, 10, NULL);
@@ -127,7 +131,7 @@ bool ESP32AzureClient::sendEvent(const char *payload, size_t length)
 bool ESP32AzureClient::reportState(const char *payload, size_t length)
 {
     esp32_azure_reported_state_t state;
-    state.payload = (char *)malloc(sizeof(char*)*length);
+    state.payload = (char *)malloc(sizeof(char *) * length);
 
     if (state.payload == NULL)
     {
@@ -163,7 +167,7 @@ void ESP32AzureClient::connection_status_callback(IOTHUB_CLIENT_CONNECTION_STATU
 void ESP32AzureClient::device_twin_callback(DEVICE_TWIN_UPDATE_STATE state, const unsigned char *payload, size_t size, void *context)
 {
     ESP32_AZURE_LOGI("Received device twin:\r\n<<<%.*s>>>", (int)size, payload);
-    
+
     if (device_twin_user_cb_)
     {
         device_twin_user_cb_(state, payload, size, context);
@@ -222,4 +226,49 @@ void ESP32AzureClient::onReportedStatedDelivered(ReportedStateCallback callback)
 void ESP32AzureClient::onDeviceTwinReceived(DeviceTwinCallback callback)
 {
     device_twin_user_cb_ = callback;
+}
+
+void ESP32AzureClient::onCloudMessageReceived(CloudMessageCallback callback)
+{
+    cloud_message_user_cb_ = callback;
+}
+
+IOTHUBMESSAGE_DISPOSITION_RESULT ESP32AzureClient::c2d_message_callback(IOTHUB_MESSAGE_HANDLE message, void *context)
+{
+    const char *buffer;
+    size_t size;
+    const char *message_id;
+    const char *correlation_id;
+
+    if ((message_id = IoTHubMessage_GetMessageId(message)) == NULL)
+    {
+        message_id = "";
+    }
+
+    if ((correlation_id = IoTHubMessage_GetCorrelationId(message)) == NULL)
+    {
+        correlation_id = "";
+    }
+
+    if (IoTHubMessage_GetByteArray(message, (const unsigned char **)&buffer, &size) != IOTHUB_MESSAGE_OK)
+    {
+        ESP32_AZURE_LOGE("Unable to retrieve the message data");
+    }
+    else
+    {
+        ESP32_AZURE_LOGI("Received message with ID %s, correlation ID %s, and size %d bytes\r\n: <<<%.*s>>>",
+                         message_id,
+                         correlation_id,
+                         (int)size,
+                         (int)size,
+                         buffer);
+
+        if (cloud_message_user_cb_)
+        {
+            return cloud_message_user_cb_(message, buffer, size);
+        }
+    }
+
+    // default return value
+    return IOTHUBMESSAGE_ACCEPTED;
 }

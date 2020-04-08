@@ -42,6 +42,7 @@ public:
     typedef std::function<void(DEVICE_TWIN_UPDATE_STATE, const unsigned char *, size_t, void *)> DeviceTwinCallback;
     typedef std::function<void(int, void *)> ReportedStateCallback;
     typedef std::function<void(IOTHUB_CLIENT_CONFIRMATION_RESULT result)> DeviceMessageConfirmationCallback;
+    typedef std::function<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, const char*, size_t size)> CloudMessageCallback;
 
     ESP32AzureClient();
     ~ESP32AzureClient();
@@ -55,6 +56,7 @@ public:
     void onEventConfirmed(DeviceMessageConfirmationCallback callback);
     void onReportedStatedDelivered(ReportedStateCallback callback);
     void onDeviceTwinReceived(DeviceTwinCallback callback);
+    void onCloudMessageReceived(CloudMessageCallback callback);
 
 private:
     static void runTask(void *context);
@@ -67,23 +69,22 @@ private:
     void device_twin_callback(DEVICE_TWIN_UPDATE_STATE state, const unsigned char *payload, size_t size, void *context);
     void reported_state_callback(int status_code, void *context);
     void send_confirmation_callback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void *context);
+    IOTHUBMESSAGE_DISPOSITION_RESULT c2d_message_callback(IOTHUB_MESSAGE_HANDLE message, void *context);
 
 private:
     IOTHUB_DEVICE_CLIENT_LL_HANDLE client_handle_ = NULL;
 
+    // Internal callbacks
     // This won't be assigned to the IoTHubDevice LL Client until the reported state is sent to Azure IoT Hub
     IOTHUB_CLIENT_REPORTED_STATE_CALLBACK reported_state_cb_;
-
     IOTHUB_CLIENT_EVENT_CONFIRMATION_CALLBACK send_confirmation_cb_;
 
     // user callbacks
     ConnectionStatusCallback connection_status_user_cb_;
-
     DeviceMessageConfirmationCallback message_confirm_user_cb_;
-
     ReportedStateCallback reported_state_user_cb_;
-
     DeviceTwinCallback device_twin_user_cb_;
+    CloudMessageCallback cloud_message_user_cb_;
 
     QueueHandle_t event_queue_;
     QueueHandle_t reported_state_queue_;
