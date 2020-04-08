@@ -44,7 +44,9 @@ bool ESP32AzureClient::begin(const char *connectionString)
     IOTHUB_CLIENT_MESSAGE_CALLBACK_ASYNC c2d_message_cb = static_cast<IOTHUB_CLIENT_MESSAGE_CALLBACK_ASYNC>(Callback<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, void *)>::callback);
     IoTHubDeviceClient_LL_SetMessageCallback(client_handle_, c2d_message_cb, NULL);
 
-    // TODO: setup callback for direct method invocation
+    Callback<int(const char *, const unsigned char *, size_t, unsigned char **, size_t *, void *)>::func = std::bind(&ESP32AzureClient::device_method_callback, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
+    IOTHUB_CLIENT_DEVICE_METHOD_CALLBACK_ASYNC method_cb = static_cast<IOTHUB_CLIENT_DEVICE_METHOD_CALLBACK_ASYNC>(Callback<int(const char *, const unsigned char *, size_t, unsigned char **, size_t *, void *)>::callback);
+    IoTHubDeviceClient_LL_SetDeviceMethodCallback(client_handle_, method_cb, NULL);
 
     xTaskCreate(&runTask, "esp32_azure_task", 1024 * 8, this, 10, NULL);
 
@@ -271,4 +273,21 @@ IOTHUBMESSAGE_DISPOSITION_RESULT ESP32AzureClient::c2d_message_callback(IOTHUB_M
 
     // default return value
     return IOTHUBMESSAGE_ACCEPTED;
+}
+
+void ESP32AzureClient::onMethodInvoked(DeviceMethodCallback callback)
+{
+    device_method_user_cb_ = callback;
+}
+
+int ESP32AzureClient::device_method_callback(const char *name, const unsigned char *payload, size_t size, unsigned char **response, size_t *response_size, void *context)
+{
+    ESP32_AZURE_LOGI("Received method invocation, name: %s, payload: %s, size: %d\r\n", name, payload, (int)size);
+
+    if (device_method_user_cb_)
+    {
+        return device_method_user_cb_(name, payload, size, response, response_size);
+    }
+
+    return -1;
 }

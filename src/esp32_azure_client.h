@@ -34,7 +34,7 @@ public:
 
     typedef struct esp32_azure_reported_state_tag
     {
-        char* payload;
+        char *payload;
         size_t length;
     } esp32_azure_reported_state_t;
 
@@ -42,7 +42,8 @@ public:
     typedef std::function<void(DEVICE_TWIN_UPDATE_STATE, const unsigned char *, size_t, void *)> DeviceTwinCallback;
     typedef std::function<void(int, void *)> ReportedStateCallback;
     typedef std::function<void(IOTHUB_CLIENT_CONFIRMATION_RESULT result)> DeviceMessageConfirmationCallback;
-    typedef std::function<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, const char*, size_t size)> CloudMessageCallback;
+    typedef std::function<IOTHUBMESSAGE_DISPOSITION_RESULT(IOTHUB_MESSAGE_HANDLE, const char *, size_t size)> CloudMessageCallback;
+    typedef std::function<int(const char*, const unsigned char*, size_t, unsigned char**, size_t*)> DeviceMethodCallback;
 
     ESP32AzureClient();
     ~ESP32AzureClient();
@@ -57,6 +58,7 @@ public:
     void onReportedStatedDelivered(ReportedStateCallback callback);
     void onDeviceTwinReceived(DeviceTwinCallback callback);
     void onCloudMessageReceived(CloudMessageCallback callback);
+    void onMethodInvoked(DeviceMethodCallback callback);
 
 private:
     static void runTask(void *context);
@@ -70,6 +72,7 @@ private:
     void reported_state_callback(int status_code, void *context);
     void send_confirmation_callback(IOTHUB_CLIENT_CONFIRMATION_RESULT result, void *context);
     IOTHUBMESSAGE_DISPOSITION_RESULT c2d_message_callback(IOTHUB_MESSAGE_HANDLE message, void *context);
+    int device_method_callback(const char *name, const unsigned char *payload, size_t size, unsigned char **response, size_t *response_size, void *context);
 
 private:
     IOTHUB_DEVICE_CLIENT_LL_HANDLE client_handle_ = NULL;
@@ -85,6 +88,7 @@ private:
     ReportedStateCallback reported_state_user_cb_;
     DeviceTwinCallback device_twin_user_cb_;
     CloudMessageCallback cloud_message_user_cb_;
+    DeviceMethodCallback device_method_user_cb_;
 
     QueueHandle_t event_queue_;
     QueueHandle_t reported_state_queue_;
